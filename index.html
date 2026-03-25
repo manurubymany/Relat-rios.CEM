@@ -947,6 +947,7 @@
           <div class="filename-label">
             API Key
             <span class="sublabel">— obtenha grátis em aistudio.google.com</span>
+            <span id="keyPreview" style="margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--accent);"></span>
           </div>
           <div style="position:relative;">
             <input type="password"
@@ -954,7 +955,7 @@
                    id="inputApiKey"
                    placeholder="AIzaSy..."
                    style="width:100%; padding-right:80px;"
-                   oninput="atualizarResumo()">
+                   oninput="atualizarResumo(); atualizarKeyPreview(this.value)">
             <button onclick="toggleApiKeyVisibility()"
                     id="btnToggleKey"
                     style="position:absolute;right:8px;top:50%;transform:translateY(-50%);
@@ -1060,6 +1061,7 @@
 
     <div class="modal-footer">
       <button class="btn-modal btn-cancel" onclick="fecharSettings()">Cancelar</button>
+      <button class="btn-modal btn-cancel" onclick="limparLocalStorage()" style="border-color:rgba(255,107,74,.3);color:var(--warn);" title="Apaga toda a configuração salva no navegador">🗑 Limpar salvo</button>
       <button class="btn-modal btn-test" onclick="testarApiKey()" style="border-color:rgba(79,255,176,.35);color:var(--accent);">🔑 Testar Key</button>
       <button class="btn-modal btn-test" onclick="testarConfiguracao()">📂 Testar Pasta</button>
       <button class="btn-modal btn-save" onclick="salvarSettings()">✓ Salvar Configuração</button>
@@ -1125,7 +1127,9 @@ const fsApiSuportada = (
       cfg.nomeArquivo = obj.nomeArquivo || '';
       cfg.nomeEntrada = obj.nomeEntrada || '';
       cfg.nomeSaida   = obj.nomeSaida   || '';
-      cfg.apiKey      = obj.apiKey      || '';
+      // Validar key salva — descartar se parecer URL ou valor inválido
+      const savedKey = (obj.apiKey || '').trim();
+      cfg.apiKey = (savedKey.startsWith('AIza') || savedKey === '') ? savedKey : '';
 
       // Preencher campos no modal
       document.getElementById('inputNomeArquivo').value = cfg.nomeArquivo;
@@ -1210,6 +1214,20 @@ function atualizarDisplayPasta(tipo, handle, nome) {
 }
 
 // ─── Toggle visibilidade da API key ──────────────────────────
+function atualizarKeyPreview(val) {
+  const v = val.trim();
+  const el = document.getElementById('keyPreview');
+  if (!el) return;
+  if (!v) { el.textContent = ''; return; }
+  if (!v.startsWith('AIza')) {
+    el.style.color = 'var(--warn)';
+    el.textContent = '⚠ inválida';
+  } else {
+    el.style.color = 'var(--accent)';
+    el.textContent = v.slice(0,6) + '••••' + v.slice(-4);
+  }
+}
+
 function toggleApiKeyVisibility() {
   const inp = document.getElementById('inputApiKey');
   const btn = document.getElementById('btnToggleKey');
@@ -1275,7 +1293,13 @@ function salvarSettings() {
   }
 
   cfg.nomeArquivo = nome;
-  cfg.apiKey      = document.getElementById('inputApiKey').value.trim().replace(/\s/g, '');
+  const rawKey = document.getElementById('inputApiKey').value.trim().replace(/\s/g, '');
+  // Validar formato — key do Gemini começa com AIza
+  if (rawKey && !rawKey.startsWith('AIza')) {
+    mostrarToast('⚠ A API Key parece inválida. Deve começar com "AIza...".', 'error');
+    return;
+  }
+  cfg.apiKey = rawKey;
   if (handlePastaEntrada) cfg.nomeEntrada = handlePastaEntrada.name;
   if (handlePastaSaida)   cfg.nomeSaida   = handlePastaSaida.name;
 
@@ -1297,6 +1321,10 @@ async function testarApiKey() {
   const key = document.getElementById('inputApiKey').value.trim().replace(/\s/g, '');
   if (!key) {
     mostrarToast('Cole sua API Key no campo antes de testar.', 'error');
+    return;
+  }
+  if (!key.startsWith('AIza')) {
+    mostrarToast('⚠ Key inválida — deve começar com "AIza...". Verifique o que foi colado.', 'error');
     return;
   }
 
@@ -1907,6 +1935,18 @@ function limparChat() {
 // ═══════════════════════════════════════════════════════════════
 // TOAST
 // ═══════════════════════════════════════════════════════════════
+function limparLocalStorage() {
+  localStorage.removeItem('fr3_editor_cfg');
+  cfg.apiKey = ''; cfg.nomeArquivo = ''; cfg.nomeEntrada = ''; cfg.nomeSaida = '';
+  document.getElementById('inputApiKey').value = '';
+  document.getElementById('inputNomeArquivo').value = '';
+  atualizarKeyPreview('');
+  atualizarDisplayPasta('entrada', null, '');
+  atualizarDisplayPasta('saida', null, '');
+  atualizarResumo();
+  mostrarToast('Configuração apagada. Insira os dados novamente.', 'info');
+}
+
 let toastTimer = null;
 function mostrarToast(msg, tipo = 'info') {
   const t = document.getElementById('toast');
