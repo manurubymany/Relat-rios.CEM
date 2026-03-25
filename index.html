@@ -1783,8 +1783,11 @@ async function enviar() {
   const texto = input.value.trim();
   if (!texto || !fr3Content) return;
 
-  // Verificar API key
-  if (!cfg.apiKey) {
+  // Verificar API key — lê do localStorage diretamente
+  let _keyCheck = '';
+  try { _keyCheck = (JSON.parse(localStorage.getItem('fr3_editor_cfg') || '{}').apiKey || '').trim(); } catch(e) {}
+  if (!_keyCheck) _keyCheck = (cfg.apiKey || '').trim();
+  if (!_keyCheck) {
     adicionarMsgSistema('⚙ **API Key não configurada!**\n\nAbra as **Configurações** (⚙ no canto superior direito), informe sua API Key do Google Gemini e clique em **Salvar Configuração**.');
     abrirSettings();
     return;
@@ -1829,9 +1832,20 @@ IMPORTANTE:
       parts: [{ text: m.content }]
     }));
 
-    // Lê sempre o valor mais recente — cfg pode estar desatualizado se o usuário salvou após carregar
-    const apiKey = cfg.apiKey.trim();
-    if (!apiKey) throw new Error('API Key não encontrada. Configure nas Configurações (⚙).');
+    // Lê sempre direto do localStorage — fonte mais confiável
+    let apiKey = '';
+    try {
+      const raw = localStorage.getItem('fr3_editor_cfg');
+      if (raw) apiKey = (JSON.parse(raw).apiKey || '').trim();
+    } catch(e) {}
+    // Fallback: cfg em memória
+    if (!apiKey) apiKey = (cfg.apiKey || '').trim();
+
+    console.log('[FR3] apiKey lida:', apiKey ? apiKey.slice(0,8) + '...' : '(vazia)');
+
+    if (!apiKey || !apiKey.startsWith('AIza')) {
+      throw new Error('API Key inválida ou não configurada. Abra ⚙ Configurações e informe a key (começa com AIza...).');
+    }
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
     const resp = await fetch(endpoint, {
