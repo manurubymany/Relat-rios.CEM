@@ -2,6 +2,9 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
+  <meta http-equiv="origin-trial" content="">
+  <!-- Permite File System Access API no GitHub Pages -->
+  <meta http-equiv="Permissions-Policy" content="file-system-access=*">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>FR3 Editor IA — Gemini</title>
 <style>
@@ -1009,9 +1012,9 @@
           O arquivo será lido como <strong id="previewArqEntrada">—</strong> da pasta de entrada configurada.
         </div>
         <div class="warn-box" id="warnFsApi">
-          ⚠ Seu navegador não suporta a <strong>File System Access API</strong>.
-          Use o Chrome ou Edge para selecionar pastas automaticamente.
-          Você ainda pode carregar arquivos arrastando ou clicando na área de upload.
+          ⚠ <strong>Seleção de pasta não disponível</strong> neste contexto.<br>
+          Isso pode ocorrer se o site estiver sendo servido sem HTTPS ou se o navegador bloqueou a permissão.<br>
+          Você ainda pode carregar arquivos <strong>arrastando ou clicando</strong> na área de upload normalmente.
         </div>
       </div>
 
@@ -1091,15 +1094,27 @@ const cfg = {
 // ═══════════════════════════════════════════════════════════════
 // FILE SYSTEM ACCESS API — suporte
 // ═══════════════════════════════════════════════════════════════
-const fsApiSuportada = 'showDirectoryPicker' in window;
+// File System Access API — disponível em Chrome/Edge em contexto HTTPS
+const fsApiSuportada = (
+  'showDirectoryPicker' in window &&
+  (window.isSecureContext || location.hostname === 'localhost')
+);
 
 // ═══════════════════════════════════════════════════════════════
 // INICIALIZAÇÃO — restaurar configuração salva
 // ═══════════════════════════════════════════════════════════════
 (function init() {
-  // Mostrar aviso se API não suportada
-  if (!fsApiSuportada) {
+  // Re-checar suporte após carregamento completo (garante que window está pronto)
+  const suporte = 'showDirectoryPicker' in window && window.isSecureContext;
+  if (!suporte) {
     document.getElementById('warnFsApi').classList.add('show');
+    // Desabilitar botões de pasta
+    document.querySelectorAll('.btn-pick-folder').forEach(b => {
+      b.disabled = true;
+      b.title = 'Não disponível neste navegador/contexto';
+      b.style.opacity = '0.4';
+      b.style.cursor = 'not-allowed';
+    });
   }
 
   // Restaurar nomes salvos no localStorage (apenas texto; handles não persistem)
