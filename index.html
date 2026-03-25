@@ -1057,7 +1057,8 @@
 
     <div class="modal-footer">
       <button class="btn-modal btn-cancel" onclick="fecharSettings()">Cancelar</button>
-      <button class="btn-modal btn-test" onclick="testarConfiguracao()">🔍 Testar</button>
+      <button class="btn-modal btn-test" onclick="testarApiKey()" style="border-color:rgba(79,255,176,.35);color:var(--accent);">🔑 Testar Key</button>
+      <button class="btn-modal btn-test" onclick="testarConfiguracao()">📂 Testar Pasta</button>
       <button class="btn-modal btn-save" onclick="salvarSettings()">✓ Salvar Configuração</button>
     </div>
   </div>
@@ -1259,7 +1260,7 @@ function salvarSettings() {
   }
 
   cfg.nomeArquivo = nome;
-  cfg.apiKey      = document.getElementById('inputApiKey').value.trim();
+  cfg.apiKey      = document.getElementById('inputApiKey').value.trim().replace(/\s/g, '');
   if (handlePastaEntrada) cfg.nomeEntrada = handlePastaEntrada.name;
   if (handlePastaSaida)   cfg.nomeSaida   = handlePastaSaida.name;
 
@@ -1274,6 +1275,39 @@ function salvarSettings() {
   atualizarUI();
   fecharSettings();
   mostrarToast('Configuração salva com sucesso!', 'success');
+}
+
+// ─── Testar API Key Gemini ────────────────────────────────────
+async function testarApiKey() {
+  const key = document.getElementById('inputApiKey').value.trim().replace(/\s/g, '');
+  if (!key) {
+    mostrarToast('Cole sua API Key no campo antes de testar.', 'error');
+    return;
+  }
+
+  mostrarToast('Testando conexão com Gemini...', 'info');
+
+  try {
+    const resp = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: 'Responda apenas: OK' }] }],
+          generationConfig: { maxOutputTokens: 10 }
+        })
+      }
+    );
+    const data = await resp.json();
+    if (data.error) {
+      mostrarToast('❌ Key inválida: ' + data.error.message, 'error');
+    } else {
+      mostrarToast('✅ API Key válida! Gemini respondeu corretamente.', 'success');
+    }
+  } catch(e) {
+    mostrarToast('❌ Erro de conexão: ' + e.message, 'error');
+  }
 }
 
 // ─── Testar configuração ──────────────────────────────────────
@@ -1706,10 +1740,11 @@ async function enviar() {
   const texto = input.value.trim();
   if (!texto || !fr3Content) return;
 
-  // Verificar API key se não estiver no ambiente Claude.ai
+  // Verificar API key
   if (!cfg.apiKey) {
-    // Tenta sem key (ambiente Claude.ai injeta automaticamente)
-    // Se já falhou antes com "Failed to fetch", o usuário deve configurar a key
+    adicionarMsgSistema('⚙ **API Key não configurada!**\n\nAbra as **Configurações** (⚙ no canto superior direito), informe sua API Key do Google Gemini e clique em **Salvar Configuração**.');
+    abrirSettings();
+    return;
   }
 
   adicionarMsgUsuario(texto);
@@ -1751,7 +1786,9 @@ IMPORTANTE:
       parts: [{ text: m.content }]
     }));
 
-    const apiKey = cfg.apiKey;
+    // Lê sempre o valor mais recente — cfg pode estar desatualizado se o usuário salvou após carregar
+    const apiKey = cfg.apiKey.trim();
+    if (!apiKey) throw new Error('API Key não encontrada. Configure nas Configurações (⚙).');
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
     const resp = await fetch(endpoint, {
