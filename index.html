@@ -1,0 +1,1870 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FR3 Editor IA — Gemini</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@400;600;800&display=swap');
+
+  :root {
+    --bg: #0d0f14;
+    --surface: #13161e;
+    --surface2: #1a1e2a;
+    --border: #252a38;
+    --accent: #4fffb0;
+    --accent2: #7b61ff;
+    --warn: #ff6b4a;
+    --text: #e8eaf0;
+    --muted: #5a6080;
+    --code: #2a2f42;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Syne', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── Header ── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 28px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    flex-shrink: 0;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+  }
+  .logo-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 12px var(--accent); }
+  .logo span { color: var(--accent); }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .status-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .status-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--muted);
+    transition: background .3s, box-shadow .3s;
+  }
+  .status-dot.active { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+
+  /* Botão settings no header */
+  .btn-settings {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 7px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    font-family: 'Syne', sans-serif;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all .2s;
+  }
+  .btn-settings:hover { border-color: var(--accent2); color: var(--accent2); }
+  .btn-settings.has-config { border-color: rgba(123,97,255,.4); color: var(--accent2); }
+
+  /* ── Layout ── */
+  .app-body {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* ── Painel Esquerdo ── */
+  .sidebar {
+    width: 300px;
+    flex-shrink: 0;
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    background: var(--surface);
+  }
+
+  .sidebar-section {
+    padding: 18px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .section-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+
+  /* Upload Zone */
+  .upload-zone {
+    border: 1.5px dashed var(--border);
+    border-radius: 10px;
+    padding: 22px 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: all .25s;
+    position: relative;
+  }
+  .upload-zone:hover, .upload-zone.drag { border-color: var(--accent); background: rgba(79,255,176,.04); }
+  .upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
+  .upload-icon { font-size: 28px; margin-bottom: 8px; }
+  .upload-text { font-size: 13px; color: var(--muted); line-height: 1.5; }
+  .upload-text strong { color: var(--accent); display: block; font-size: 14px; margin-bottom: 4px; }
+
+  /* Botão carregar da pasta configurada */
+  .btn-load-folder {
+    width: 100%;
+    margin-top: 10px;
+    padding: 8px 12px;
+    border-radius: 7px;
+    border: 1px solid rgba(123,97,255,.35);
+    background: rgba(123,97,255,.07);
+    color: var(--accent2);
+    font-family: 'Syne', sans-serif;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all .2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+  .btn-load-folder:hover { background: rgba(123,97,255,.15); border-color: var(--accent2); }
+  .btn-load-folder:disabled { opacity: .3; cursor: not-allowed; }
+
+  /* File info */
+  .file-info {
+    display: none;
+    background: var(--code);
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+  }
+  .file-info.show { display: block; }
+  .file-name { color: var(--accent); font-size: 13px; font-weight: 600; margin-bottom: 6px; word-break: break-all; }
+  .file-meta { color: var(--muted); line-height: 1.8; }
+  .file-meta span { color: var(--text); }
+
+  /* Estrutura do relatório */
+  .struct-tree {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+  }
+  .tree-empty {
+    padding: 20px;
+    color: var(--muted);
+    font-size: 12px;
+    text-align: center;
+    font-family: 'Syne', sans-serif;
+  }
+  .tree-group { margin-bottom: 4px; }
+  .tree-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 20px;
+    color: var(--muted);
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    cursor: pointer;
+    user-select: none;
+  }
+  .tree-header:hover { color: var(--text); }
+  .tree-arrow { transition: transform .2s; display: inline-block; }
+  .tree-arrow.open { transform: rotate(90deg); }
+  .tree-items { display: none; }
+  .tree-items.open { display: block; }
+  .tree-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 28px;
+    cursor: pointer;
+    border-radius: 4px;
+    margin: 1px 8px;
+    transition: background .15s;
+    font-size: 11px;
+  }
+  .tree-item:hover { background: var(--surface2); }
+  .tree-item.selected { background: rgba(79,255,176,.1); color: var(--accent); }
+  .tree-badge {
+    font-size: 9px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    background: var(--surface2);
+    color: var(--muted);
+    margin-left: auto;
+  }
+  .badge-memo { background: rgba(123,97,255,.15); color: var(--accent2); }
+  .badge-pic  { background: rgba(255,107,74,.15); color: var(--warn); }
+  .badge-band { background: rgba(79,255,176,.1); color: var(--accent); }
+  .badge-db   { background: rgba(255,200,0,.1); color: #ffd700; }
+
+  /* ── Chat area ── */
+  .chat-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .chat-toolbar {
+    padding: 12px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--surface);
+    flex-shrink: 0;
+  }
+  .toolbar-btn {
+    padding: 6px 14px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    font-family: 'Syne', sans-serif;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all .2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .toolbar-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .toolbar-btn.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #000;
+    font-weight: 700;
+  }
+  .toolbar-btn.primary:hover { opacity: .85; }
+  .toolbar-btn.save-folder {
+    background: rgba(123,97,255,.12);
+    border-color: rgba(123,97,255,.4);
+    color: var(--accent2);
+  }
+  .toolbar-btn.save-folder:hover { background: rgba(123,97,255,.22); }
+  .toolbar-btn:disabled { opacity: .3; cursor: not-allowed; }
+
+  .chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    scroll-behavior: smooth;
+  }
+
+  /* Mensagens */
+  .msg {
+    display: flex;
+    gap: 12px;
+    animation: msgIn .2s ease;
+  }
+  @keyframes msgIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .msg.user { flex-direction: row-reverse; }
+
+  .msg-avatar {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 700;
+  }
+  .msg.assistant .msg-avatar { background: rgba(79,255,176,.15); color: var(--accent); font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+  .msg.user .msg-avatar { background: rgba(123,97,255,.2); color: var(--accent2); font-size: 12px; }
+
+  .msg-bubble {
+    max-width: 75%;
+    padding: 12px 16px;
+    border-radius: 12px;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  .msg.assistant .msg-bubble {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-top-left-radius: 2px;
+  }
+  .msg.user .msg-bubble {
+    background: rgba(123,97,255,.18);
+    border: 1px solid rgba(123,97,255,.3);
+    border-top-right-radius: 2px;
+  }
+
+  .msg-bubble code {
+    background: var(--code);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--accent);
+  }
+
+  .msg-bubble pre {
+    background: var(--code);
+    padding: 10px 14px;
+    border-radius: 6px;
+    overflow-x: auto;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    margin-top: 8px;
+    border-left: 3px solid var(--accent);
+    color: #a0e8c8;
+    white-space: pre-wrap;
+  }
+
+  .msg-time {
+    font-size: 10px;
+    color: var(--muted);
+    margin-top: 5px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .msg.user .msg-time { text-align: right; }
+
+  /* Typing indicator */
+  .typing {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+  }
+  .typing-avatar {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    background: rgba(79,255,176,.15);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    flex-shrink: 0;
+  }
+  .typing-bubble {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-top-left-radius: 2px;
+    border-radius: 12px;
+    padding: 14px 18px;
+    display: flex;
+    gap: 5px;
+    align-items: center;
+  }
+  .typing-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    opacity: .4;
+    animation: blink 1.2s infinite;
+  }
+  .typing-dot:nth-child(2) { animation-delay: .2s; }
+  .typing-dot:nth-child(3) { animation-delay: .4s; }
+  @keyframes blink { 0%,80%,100%{opacity:.4} 40%{opacity:1} }
+
+  /* ── Input area ── */
+  .chat-input-area {
+    padding: 16px 24px 20px;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+    flex-shrink: 0;
+  }
+
+  .input-wrap {
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
+    background: var(--surface2);
+    border: 1.5px solid var(--border);
+    border-radius: 12px;
+    padding: 10px 14px;
+    transition: border-color .2s;
+  }
+  .input-wrap:focus-within { border-color: var(--accent); }
+
+  #userInput {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    font-size: 14px;
+    resize: none;
+    max-height: 120px;
+    line-height: 1.5;
+  }
+  #userInput::placeholder { color: var(--muted); }
+
+  .send-btn {
+    width: 36px; height: 36px;
+    border-radius: 8px;
+    background: var(--accent);
+    border: none;
+    color: #000;
+    cursor: pointer;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: opacity .2s, transform .1s;
+    font-weight: 700;
+  }
+  .send-btn:hover { opacity: .85; }
+  .send-btn:active { transform: scale(.95); }
+  .send-btn:disabled { opacity: .3; cursor: not-allowed; }
+
+  .input-hints {
+    margin-top: 8px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .hint-chip {
+    padding: 4px 10px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all .2s;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .hint-chip:hover { border-color: var(--accent2); color: var(--accent2); }
+
+  /* scrollbar */
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* Welcome */
+  .welcome {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 16px;
+    color: var(--muted);
+    text-align: center;
+    padding: 40px;
+  }
+  .welcome-icon { font-size: 48px; opacity: .4; }
+  .welcome h3 { font-size: 18px; color: var(--text); font-weight: 600; }
+  .welcome p { font-size: 13px; line-height: 1.7; max-width: 380px; }
+
+  /* diff highlight */
+  .change-tag {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 4px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+  }
+  .change-tag.add { background: rgba(79,255,176,.15); color: var(--accent); }
+  .change-tag.mod { background: rgba(123,97,255,.15); color: var(--accent2); }
+  .change-tag.del { background: rgba(255,107,74,.15); color: var(--warn); }
+
+  /* ══════════════════════════════════════════
+     MODAL DE SETTINGS
+  ══════════════════════════════════════════ */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.7);
+    backdrop-filter: blur(4px);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .25s;
+  }
+  .modal-overlay.open {
+    opacity: 1;
+    pointer-events: all;
+  }
+
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    width: 560px;
+    max-width: 95vw;
+    max-height: 90vh;
+    overflow-y: auto;
+    transform: translateY(16px) scale(.97);
+    transition: transform .25s;
+    box-shadow: 0 24px 80px rgba(0,0,0,.5);
+  }
+  .modal-overlay.open .modal { transform: translateY(0) scale(1); }
+
+  .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 22px 24px 18px;
+    border-bottom: 1px solid var(--border);
+  }
+  .modal-title {
+    font-size: 16px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .modal-title .icon {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    background: rgba(123,97,255,.15);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+  }
+  .modal-close {
+    width: 30px; height: 30px;
+    border-radius: 7px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 16px;
+    display: flex; align-items: center; justify-content: center;
+    transition: all .2s;
+  }
+  .modal-close:hover { border-color: var(--warn); color: var(--warn); }
+
+  .modal-body { padding: 24px; }
+
+  /* Grupos de configuração */
+  .settings-group {
+    margin-bottom: 28px;
+  }
+  .settings-group-title {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* Campo de pasta */
+  .folder-field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .folder-label {
+    font-size: 13px;
+    color: var(--text);
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .folder-label .sublabel {
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 400;
+  }
+  .folder-row {
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+  }
+  .folder-display {
+    flex: 1;
+    background: var(--code);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 42px;
+    overflow: hidden;
+  }
+  .folder-display .folder-path {
+    color: var(--accent);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;
+  }
+  .folder-display .folder-empty {
+    color: var(--muted);
+    font-style: italic;
+  }
+  .folder-status {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background: var(--muted);
+    transition: background .3s;
+  }
+  .folder-status.ok { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+  .folder-status.warn { background: var(--warn); }
+
+  .btn-pick-folder {
+    padding: 0 16px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all .2s;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .btn-pick-folder:hover { border-color: var(--accent2); color: var(--accent2); }
+
+  /* Campo nome do arquivo */
+  .filename-field {
+    margin-bottom: 16px;
+  }
+  .filename-label {
+    font-size: 13px;
+    color: var(--text);
+    font-weight: 600;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .filename-label .sublabel {
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 400;
+  }
+  .filename-input-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .filename-input {
+    flex: 1;
+    background: var(--code);
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    outline: none;
+    transition: border-color .2s;
+  }
+  .filename-input:focus { border-color: var(--accent); }
+  .filename-input::placeholder { color: var(--muted); }
+  .filename-ext {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--muted);
+    padding: 10px 12px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+
+  /* Info box */
+  .info-box {
+    background: rgba(79,255,176,.05);
+    border: 1px solid rgba(79,255,176,.15);
+    border-radius: 10px;
+    padding: 14px 16px;
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.7;
+    margin-top: 8px;
+  }
+  .info-box strong { color: var(--accent); }
+
+  .warn-box {
+    background: rgba(255,107,74,.05);
+    border: 1px solid rgba(255,107,74,.2);
+    border-radius: 10px;
+    padding: 14px 16px;
+    font-size: 12px;
+    color: #ff9e89;
+    line-height: 1.7;
+    margin-top: 8px;
+    display: none;
+  }
+  .warn-box.show { display: block; }
+
+  /* Preview resumo */
+  .config-summary {
+    background: var(--code);
+    border-radius: 10px;
+    padding: 14px 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 2;
+    margin-top: 4px;
+  }
+  .config-summary .cs-row { display: flex; gap: 8px; }
+  .config-summary .cs-key { color: var(--muted); min-width: 80px; }
+  .config-summary .cs-val { color: var(--accent); }
+  .config-summary .cs-val.empty { color: var(--warn); font-style: italic; }
+
+  /* Botões do modal */
+  .modal-footer {
+    padding: 18px 24px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+  }
+  .btn-modal {
+    padding: 9px 20px;
+    border-radius: 8px;
+    font-family: 'Syne', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all .2s;
+  }
+  .btn-cancel {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+  }
+  .btn-cancel:hover { border-color: var(--warn); color: var(--warn); }
+  .btn-save {
+    background: var(--accent2);
+    border: 1px solid var(--accent2);
+    color: #fff;
+  }
+  .btn-save:hover { opacity: .85; }
+  .btn-test {
+    background: transparent;
+    border: 1px solid rgba(79,255,176,.35);
+    color: var(--accent);
+  }
+  .btn-test:hover { background: rgba(79,255,176,.08); }
+
+  /* Toast de notificação */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    padding: 12px 20px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transform: translateY(20px);
+    opacity: 0;
+    transition: all .3s;
+    pointer-events: none;
+    max-width: 380px;
+    box-shadow: 0 8px 32px rgba(0,0,0,.4);
+  }
+  .toast.show { transform: translateY(0); opacity: 1; }
+  .toast.success { background: rgba(79,255,176,.15); border: 1px solid rgba(79,255,176,.3); color: var(--accent); }
+  .toast.error   { background: rgba(255,107,74,.15); border: 1px solid rgba(255,107,74,.3); color: var(--warn); }
+  .toast.info    { background: rgba(123,97,255,.15); border: 1px solid rgba(123,97,255,.3); color: var(--accent2); }
+
+  /* Badge de configuração ativa */
+  .config-badge {
+    display: none;
+    font-size: 9px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: rgba(123,97,255,.2);
+    color: var(--accent2);
+    font-family: 'JetBrains Mono', monospace;
+    vertical-align: middle;
+  }
+  .config-badge.show { display: inline; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-dot"></div>
+    FR3 <span>Editor</span> IA
+  </div>
+  <div class="header-right">
+    <button class="btn-settings" id="btnSettings" onclick="abrirSettings()">
+      ⚙ Configurações
+    </button>
+    <div class="status-bar">
+      <div class="status-dot" id="statusDot"></div>
+      <span id="statusText">Aguardando arquivo...</span>
+    </div>
+  </div>
+</header>
+
+<div class="app-body">
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-section">
+      <div class="section-label">
+        Arquivo FR3
+        <span class="config-badge" id="configBadge">PASTA CONFIG.</span>
+      </div>
+      <div class="upload-zone" id="uploadZone">
+        <input type="file" id="fileInput" accept=".fr3">
+        <div class="upload-icon">📄</div>
+        <div class="upload-text">
+          <strong>Solte o arquivo aqui</strong>
+          Clique ou arraste um .fr3
+        </div>
+      </div>
+      <button class="btn-load-folder" id="btnLoadFolder" onclick="carregarDaPasta()" disabled title="Configure as pastas nas Configurações primeiro">
+        📂 Carregar da pasta configurada
+      </button>
+      <div class="file-info" id="fileInfo">
+        <div class="file-name" id="fileName"></div>
+        <div class="file-meta" id="fileMeta"></div>
+      </div>
+    </div>
+
+    <div class="sidebar-section" style="flex:1; overflow:hidden; display:flex; flex-direction:column; padding-bottom:0;">
+      <div class="section-label">Estrutura do Relatório</div>
+      <div class="struct-tree" id="structTree">
+        <div class="tree-empty">Carregue um arquivo .fr3<br>para ver a estrutura</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Chat -->
+  <div class="chat-area">
+    <div class="chat-toolbar">
+      <button class="toolbar-btn" id="btnGerarDat" disabled onclick="baixarDat()">⬇ Baixar .dat</button>
+      <button class="toolbar-btn primary" id="btnBaixarFr3" disabled onclick="baixarFr3()">⬇ Baixar FR3</button>
+      <button class="toolbar-btn save-folder" id="btnSalvarPasta" disabled onclick="salvarNaPasta()">💾 Salvar na Pasta</button>
+      <button class="toolbar-btn" id="btnLimpar" onclick="limparChat()">🗑 Limpar Chat</button>
+    </div>
+
+    <div class="chat-messages" id="chatMessages">
+      <div class="welcome" id="welcome">
+        <div class="welcome-icon">🤖</div>
+        <h3>FR3 Editor com Inteligência Artificial</h3>
+        <p>Carregue um arquivo <strong>.fr3</strong> no painel esquerdo e depois descreva em linguagem natural as alterações que deseja fazer no relatório.</p>
+        <p style="margin-top:8px; font-size:12px; color:#3a4060;">
+          Ex: <em>"Mude a fonte de todos os campos para Tahoma 10"</em><br>
+          Ex: <em>"Adicione o campo CLI_FANTASIA abaixo do nome"</em>
+        </p>
+      </div>
+    </div>
+
+    <div class="chat-input-area">
+      <div class="input-wrap">
+        <textarea id="userInput" rows="1" placeholder="Descreva a alteração que deseja fazer no relatório..." disabled></textarea>
+        <button class="send-btn" id="sendBtn" onclick="enviar()" disabled>➤</button>
+      </div>
+      <div class="input-hints" id="inputHints">
+        <span class="hint-chip" onclick="usarHint(this)">Mudar fonte de todos para Arial 11</span>
+        <span class="hint-chip" onclick="usarHint(this)">Deixar título em negrito tamanho 14</span>
+        <span class="hint-chip" onclick="usarHint(this)">Adicionar campo OBR_NOME do qry_obra</span>
+        <span class="hint-chip" onclick="usarHint(this)">Mudar cor da fonte para azul escuro</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     MODAL DE SETTINGS
+══════════════════════════════════════════ -->
+<div class="modal-overlay" id="modalSettings">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">
+        <div class="icon">⚙</div>
+        Configurações de Pastas
+      </div>
+      <button class="modal-close" onclick="fecharSettings()">✕</button>
+    </div>
+
+    <div class="modal-body">
+
+      <!-- API Key -->
+      <div class="settings-group">
+        <div class="settings-group-title">🔑 Chave de API Google Gemini</div>
+
+        <div class="filename-field">
+          <div class="filename-label">
+            API Key
+            <span class="sublabel">— obtenha grátis em aistudio.google.com</span>
+          </div>
+          <div style="position:relative;">
+            <input type="password"
+                   class="filename-input"
+                   id="inputApiKey"
+                   placeholder="AIzaSy..."
+                   style="width:100%; padding-right:80px;"
+                   oninput="atualizarResumo()">
+            <button onclick="toggleApiKeyVisibility()"
+                    id="btnToggleKey"
+                    style="position:absolute;right:8px;top:50%;transform:translateY(-50%);
+                           background:var(--surface2);border:1px solid var(--border);
+                           color:var(--muted);border-radius:5px;padding:3px 8px;
+                           font-size:11px;cursor:pointer;font-family:'JetBrains Mono',monospace;">
+              👁 ver
+            </button>
+          </div>
+        </div>
+
+        <div class="info-box">
+          Obtenha sua chave gratuita em <strong>aistudio.google.com</strong> → <em>Get API Key</em>.
+          Ela é salva apenas no <strong>localStorage</strong> deste navegador — nunca enviada a terceiros.
+          Modelo utilizado: <strong>Gemini 2.0 Flash</strong> (gratuito).
+        </div>
+      </div>
+
+      <!-- Pasta de Entrada -->
+      <div class="settings-group">
+        <div class="settings-group-title">📂 Pasta de Entrada</div>
+
+        <div class="folder-field">
+          <div class="folder-label">
+            Pasta de leitura
+            <span class="sublabel">— onde estão os arquivos .fr3</span>
+          </div>
+          <div class="folder-row">
+            <div class="folder-display" id="displayEntrada">
+              <div class="folder-status" id="statusEntrada"></div>
+              <span class="folder-empty" id="textoEntrada">Nenhuma pasta selecionada</span>
+            </div>
+            <button class="btn-pick-folder" onclick="selecionarPastaEntrada()">
+              📁 Selecionar
+            </button>
+          </div>
+        </div>
+
+        <div class="filename-field">
+          <div class="filename-label">
+            Nome do arquivo a carregar
+            <span class="sublabel">— sem a extensão .fr3</span>
+          </div>
+          <div class="filename-input-row">
+            <input type="text"
+                   class="filename-input"
+                   id="inputNomeArquivo"
+                   placeholder="ex: orcamento_cliente"
+                   oninput="atualizarResumo()">
+            <span class="filename-ext">.fr3</span>
+          </div>
+        </div>
+
+        <div class="info-box">
+          O arquivo será lido como <strong id="previewArqEntrada">—</strong> da pasta de entrada configurada.
+        </div>
+        <div class="warn-box" id="warnFsApi">
+          ⚠ Seu navegador não suporta a <strong>File System Access API</strong>.
+          Use o Chrome ou Edge para selecionar pastas automaticamente.
+          Você ainda pode carregar arquivos arrastando ou clicando na área de upload.
+        </div>
+      </div>
+
+      <!-- Pasta de Saída -->
+      <div class="settings-group">
+        <div class="settings-group-title">💾 Pasta de Saída</div>
+
+        <div class="folder-field">
+          <div class="folder-label">
+            Pasta de gravação
+            <span class="sublabel">— onde serão salvos o .fr3 e o .dat</span>
+          </div>
+          <div class="folder-row">
+            <div class="folder-display" id="displaySaida">
+              <div class="folder-status" id="statusSaida"></div>
+              <span class="folder-empty" id="textoSaida">Nenhuma pasta selecionada</span>
+            </div>
+            <button class="btn-pick-folder" onclick="selecionarPastaSaida()">
+              📁 Selecionar
+            </button>
+          </div>
+        </div>
+
+        <div class="info-box">
+          Serão salvos dois arquivos: <strong id="previewArqSaida1">—</strong>
+          e <strong id="previewArqSaida2">—</strong>
+        </div>
+      </div>
+
+      <!-- Resumo da configuração -->
+      <div class="settings-group" style="margin-bottom:0">
+        <div class="settings-group-title">📋 Resumo da Configuração</div>
+        <div class="config-summary" id="configSummary">
+          <div class="cs-row"><span class="cs-key">API Key:</span><span class="cs-val empty" id="sum-apikey">não informada</span></div>
+          <div class="cs-row"><span class="cs-key">Entrada:</span><span class="cs-val empty" id="sum-entrada">não configurada</span></div>
+          <div class="cs-row"><span class="cs-key">Arquivo:</span><span class="cs-val empty" id="sum-arquivo">não definido</span></div>
+          <div class="cs-row"><span class="cs-key">Saída:</span><span class="cs-val empty" id="sum-saida">não configurada</span></div>
+          <div class="cs-row"><span class="cs-key">Status:</span><span class="cs-val empty" id="sum-status">incompleto</span></div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn-modal btn-cancel" onclick="fecharSettings()">Cancelar</button>
+      <button class="btn-modal btn-test" onclick="testarConfiguracao()">🔍 Testar</button>
+      <button class="btn-modal btn-save" onclick="salvarSettings()">✓ Salvar Configuração</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// ESTADO GLOBAL
+// ═══════════════════════════════════════════════════════════════
+let fr3Content  = null;   // XML original em string
+let fr3Modified = null;   // XML modificado
+let datObj      = null;   // índice .dat
+let conversa    = [];     // histórico de mensagens para a API
+
+// Handles da File System Access API (persistem durante a sessão)
+let handlePastaEntrada = null;
+let handlePastaSaida   = null;
+
+// Configuração salva em memória (sincronizada com localStorage onde possível)
+const cfg = {
+  nomeArquivo:  '',   // sem extensão
+  nomeEntrada:  '',   // nome legível da pasta de entrada
+  nomeSaida:    '',   // nome legível da pasta de saída
+  apiKey:       '',   // chave da API Anthropic
+};
+
+// ═══════════════════════════════════════════════════════════════
+// FILE SYSTEM ACCESS API — suporte
+// ═══════════════════════════════════════════════════════════════
+const fsApiSuportada = 'showDirectoryPicker' in window;
+
+// ═══════════════════════════════════════════════════════════════
+// INICIALIZAÇÃO — restaurar configuração salva
+// ═══════════════════════════════════════════════════════════════
+(function init() {
+  // Mostrar aviso se API não suportada
+  if (!fsApiSuportada) {
+    document.getElementById('warnFsApi').classList.add('show');
+  }
+
+  // Restaurar nomes salvos no localStorage (apenas texto; handles não persistem)
+  const saved = localStorage.getItem('fr3_editor_cfg');
+  if (saved) {
+    try {
+      const obj = JSON.parse(saved);
+      cfg.nomeArquivo = obj.nomeArquivo || '';
+      cfg.nomeEntrada = obj.nomeEntrada || '';
+      cfg.nomeSaida   = obj.nomeSaida   || '';
+      cfg.apiKey      = obj.apiKey      || '';
+
+      // Preencher campos no modal
+      document.getElementById('inputNomeArquivo').value = cfg.nomeArquivo;
+      if (cfg.apiKey) document.getElementById('inputApiKey').value = cfg.apiKey;
+
+      atualizarUI();
+    } catch(e) {}
+  }
+})();
+
+// ═══════════════════════════════════════════════════════════════
+// MODAL DE SETTINGS
+// ═══════════════════════════════════════════════════════════════
+function abrirSettings() {
+  // Sincronizar campos com cfg atual
+  document.getElementById('inputNomeArquivo').value = cfg.nomeArquivo;
+  atualizarDisplayPasta('entrada', handlePastaEntrada, cfg.nomeEntrada);
+  atualizarDisplayPasta('saida', handlePastaSaida, cfg.nomeSaida);
+  atualizarResumo();
+  document.getElementById('modalSettings').classList.add('open');
+}
+
+function fecharSettings() {
+  document.getElementById('modalSettings').classList.remove('open');
+}
+
+// Fechar ao clicar fora do modal
+document.getElementById('modalSettings').addEventListener('click', function(e) {
+  if (e.target === this) fecharSettings();
+});
+
+// ─── Selecionar pasta de entrada ──────────────────────────────
+async function selecionarPastaEntrada() {
+  if (!fsApiSuportada) {
+    mostrarToast('Seu navegador não suporta seleção de pasta. Use Chrome ou Edge.', 'error');
+    return;
+  }
+  try {
+    handlePastaEntrada = await window.showDirectoryPicker({ mode: 'read' });
+    cfg.nomeEntrada = handlePastaEntrada.name;
+    atualizarDisplayPasta('entrada', handlePastaEntrada, cfg.nomeEntrada);
+    atualizarResumo();
+  } catch (e) {
+    if (e.name !== 'AbortError') {
+      mostrarToast('Erro ao selecionar pasta: ' + e.message, 'error');
+    }
+  }
+}
+
+// ─── Selecionar pasta de saída ────────────────────────────────
+async function selecionarPastaSaida() {
+  if (!fsApiSuportada) {
+    mostrarToast('Seu navegador não suporta seleção de pasta. Use Chrome ou Edge.', 'error');
+    return;
+  }
+  try {
+    handlePastaSaida = await window.showDirectoryPicker({ mode: 'readwrite' });
+    cfg.nomeSaida = handlePastaSaida.name;
+    atualizarDisplayPasta('saida', handlePastaSaida, cfg.nomeSaida);
+    atualizarResumo();
+  } catch (e) {
+    if (e.name !== 'AbortError') {
+      mostrarToast('Erro ao selecionar pasta: ' + e.message, 'error');
+    }
+  }
+}
+
+// ─── Atualizar display de pasta no modal ──────────────────────
+function atualizarDisplayPasta(tipo, handle, nome) {
+  const textoEl  = document.getElementById(`texto${tipo.charAt(0).toUpperCase()+tipo.slice(1)}`);
+  const statusEl = document.getElementById(`status${tipo.charAt(0).toUpperCase()+tipo.slice(1)}`);
+
+  if (handle || nome) {
+    textoEl.textContent = nome || '(pasta selecionada)';
+    textoEl.className = 'folder-path';
+    statusEl.className = 'folder-status ok';
+  } else {
+    textoEl.textContent = 'Nenhuma pasta selecionada';
+    textoEl.className = 'folder-empty';
+    statusEl.className = 'folder-status';
+  }
+}
+
+// ─── Toggle visibilidade da API key ──────────────────────────
+function toggleApiKeyVisibility() {
+  const inp = document.getElementById('inputApiKey');
+  const btn = document.getElementById('btnToggleKey');
+  if (inp.type === 'password') {
+    inp.type = 'text';
+    btn.textContent = '🙈 ocultar';
+  } else {
+    inp.type = 'password';
+    btn.textContent = '👁 ver';
+  }
+}
+
+// ─── Atualizar resumo / preview ───────────────────────────────
+function atualizarResumo() {
+  const nome = document.getElementById('inputNomeArquivo').value.trim();
+
+  // Previews de arquivos
+  document.getElementById('previewArqEntrada').textContent =
+    nome ? `${nome}.fr3` : '(defina o nome do arquivo)';
+
+  document.getElementById('previewArqSaida1').textContent =
+    nome ? `${nome}_modificado.fr3` : '—';
+  document.getElementById('previewArqSaida2').textContent =
+    nome ? `${nome}.dat` : '—';
+
+  // Resumo
+  const sumEntrada = document.getElementById('sum-entrada');
+  const sumArquivo = document.getElementById('sum-arquivo');
+  const sumSaida   = document.getElementById('sum-saida');
+  const sumStatus  = document.getElementById('sum-status');
+
+  const nomeEntrada = cfg.nomeEntrada || (handlePastaEntrada ? handlePastaEntrada.name : '');
+  const nomeSaida   = cfg.nomeSaida   || (handlePastaSaida   ? handlePastaSaida.name   : '');
+
+  sumEntrada.textContent = nomeEntrada || 'não configurada';
+  sumEntrada.className = nomeEntrada ? 'cs-val' : 'cs-val empty';
+
+  sumArquivo.textContent = nome ? `${nome}.fr3` : 'não definido';
+  sumArquivo.className = nome ? 'cs-val' : 'cs-val empty';
+
+  sumSaida.textContent = nomeSaida || 'não configurada';
+  sumSaida.className = nomeSaida ? 'cs-val' : 'cs-val empty';
+
+  const apiKey = document.getElementById('inputApiKey').value.trim();
+  const sumApiKey = document.getElementById('sum-apikey');
+  if (sumApiKey) {
+    sumApiKey.textContent = apiKey ? '••••••••' + apiKey.slice(-4) : 'não informada';
+    sumApiKey.className   = apiKey ? 'cs-val' : 'cs-val empty';
+  }
+
+  const completo = nomeEntrada && nome && nomeSaida;
+  sumStatus.textContent = completo ? '✓ completo' : 'incompleto';
+  sumStatus.className = completo ? 'cs-val' : 'cs-val empty';
+}
+
+// ─── Salvar settings ──────────────────────────────────────────
+function salvarSettings() {
+  const nome = document.getElementById('inputNomeArquivo').value.trim();
+
+  if (!nome) {
+    mostrarToast('Informe o nome do arquivo .fr3 antes de salvar.', 'error');
+    return;
+  }
+
+  cfg.nomeArquivo = nome;
+  cfg.apiKey      = document.getElementById('inputApiKey').value.trim();
+  if (handlePastaEntrada) cfg.nomeEntrada = handlePastaEntrada.name;
+  if (handlePastaSaida)   cfg.nomeSaida   = handlePastaSaida.name;
+
+  // Persistir textos no localStorage
+  localStorage.setItem('fr3_editor_cfg', JSON.stringify({
+    nomeArquivo: cfg.nomeArquivo,
+    nomeEntrada: cfg.nomeEntrada,
+    nomeSaida:   cfg.nomeSaida,
+    apiKey:      cfg.apiKey,
+  }));
+
+  atualizarUI();
+  fecharSettings();
+  mostrarToast('Configuração salva com sucesso!', 'success');
+}
+
+// ─── Testar configuração ──────────────────────────────────────
+async function testarConfiguracao() {
+  const nome = document.getElementById('inputNomeArquivo').value.trim();
+
+  if (!handlePastaEntrada) {
+    mostrarToast('Selecione a pasta de entrada primeiro.', 'error'); return;
+  }
+  if (!nome) {
+    mostrarToast('Informe o nome do arquivo.', 'error'); return;
+  }
+
+  try {
+    await handlePastaEntrada.getFileHandle(`${nome}.fr3`);
+    mostrarToast(`✓ Arquivo "${nome}.fr3" encontrado na pasta de entrada!`, 'success');
+  } catch(e) {
+    mostrarToast(`Arquivo "${nome}.fr3" não encontrado na pasta de entrada.`, 'error');
+  }
+}
+
+// ─── Atualizar UI principal baseado na config ─────────────────
+function atualizarUI() {
+  const temConfig = cfg.nomeArquivo && (handlePastaEntrada || cfg.nomeEntrada);
+
+  // Badge na sidebar
+  document.getElementById('configBadge').className =
+    temConfig ? 'config-badge show' : 'config-badge';
+
+  // Botão carregar da pasta
+  const btnLoad = document.getElementById('btnLoadFolder');
+  btnLoad.disabled = !(temConfig && handlePastaEntrada);
+  btnLoad.title = temConfig && !handlePastaEntrada
+    ? 'Reabra as Configurações e selecione a pasta novamente (handles não persistem entre recargas)'
+    : '';
+
+  // Botão settings — indica se tem config
+  document.getElementById('btnSettings').className =
+    temConfig ? 'btn-settings has-config' : 'btn-settings';
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CARREGAR DA PASTA CONFIGURADA
+// ═══════════════════════════════════════════════════════════════
+async function carregarDaPasta() {
+  if (!handlePastaEntrada) {
+    mostrarToast('Selecione a pasta de entrada nas Configurações.', 'error'); return;
+  }
+  if (!cfg.nomeArquivo) {
+    mostrarToast('Defina o nome do arquivo nas Configurações.', 'error'); return;
+  }
+
+  try {
+    const fileHandle = await handlePastaEntrada.getFileHandle(`${cfg.nomeArquivo}.fr3`);
+    const file = await fileHandle.getFile();
+    processarArquivo(file);
+    mostrarToast(`Arquivo "${cfg.nomeArquivo}.fr3" carregado da pasta!`, 'success');
+  } catch(e) {
+    if (e.name === 'NotFoundError') {
+      mostrarToast(`Arquivo "${cfg.nomeArquivo}.fr3" não encontrado na pasta de entrada.`, 'error');
+    } else {
+      mostrarToast('Erro ao ler o arquivo: ' + e.message, 'error');
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SALVAR NA PASTA DE SAÍDA
+// ═══════════════════════════════════════════════════════════════
+async function salvarNaPasta() {
+  if (!fr3Modified) {
+    mostrarToast('Nenhum FR3 modificado para salvar.', 'error'); return;
+  }
+  if (!handlePastaSaida) {
+    mostrarToast('Selecione a pasta de saída nas Configurações.', 'error');
+    abrirSettings();
+    return;
+  }
+
+  const nomeFr3 = `${cfg.nomeArquivo || datObj.meta.source_file.replace('.fr3','')}_modificado.fr3`;
+  const nomeDat = `${cfg.nomeArquivo || datObj.meta.source_file.replace('.fr3','')}.dat`;
+
+  try {
+    // Salvar FR3
+    const fr3Handle = await handlePastaSaida.getFileHandle(nomeFr3, { create: true });
+    const fr3Writable = await fr3Handle.createWritable();
+    await fr3Writable.write(fr3Modified);
+    await fr3Writable.close();
+
+    // Salvar DAT
+    const datHandle = await handlePastaSaida.getFileHandle(nomeDat, { create: true });
+    const datWritable = await datHandle.createWritable();
+    await datWritable.write(JSON.stringify(datObj, null, 2));
+    await datWritable.close();
+
+    adicionarMsgSistema(
+      `💾 Arquivos salvos na pasta **${cfg.nomeSaida || handlePastaSaida.name}**:\n\n` +
+      `✅ \`${nomeFr3}\`\n` +
+      `✅ \`${nomeDat}\``
+    );
+    mostrarToast(`Salvos: ${nomeFr3} + ${nomeDat}`, 'success');
+    setStatus(true, 'Arquivos salvos na pasta de saída');
+  } catch(e) {
+    mostrarToast('Erro ao salvar: ' + e.message, 'error');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// UPLOAD DO ARQUIVO (mantém compatibilidade com drag/drop)
+// ═══════════════════════════════════════════════════════════════
+const fileInput  = document.getElementById('fileInput');
+const uploadZone = document.getElementById('uploadZone');
+
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault(); uploadZone.classList.remove('drag');
+  const f = e.dataTransfer.files[0];
+  if (f) processarArquivo(f);
+});
+fileInput.addEventListener('change', () => {
+  if (fileInput.files[0]) processarArquivo(fileInput.files[0]);
+});
+
+function processarArquivo(file) {
+  if (!file.name.toLowerCase().endsWith('.fr3')) {
+    alert('Por favor, selecione um arquivo .fr3'); return;
+  }
+  const reader = new FileReader();
+  reader.onload = e => {
+    fr3Content  = e.target.result;
+    fr3Modified = fr3Content;
+    datObj      = gerarDat(fr3Content, file.name);
+    mostrarInfoArquivo(file, datObj);
+    renderizarArvore(datObj);
+    ativarChat();
+    document.getElementById('welcome').style.display = 'none';
+    adicionarMsgSistema(
+      `✅ Arquivo <code>${file.name}</code> carregado!\n\n` +
+      `Encontrei **${datObj.summary.total_components} componentes**, ` +
+      `**${datObj.summary.total_queries} query**, ` +
+      `**${datObj.summary.total_variables} variáveis**.\n\n` +
+      `Pode me pedir qualquer alteração em linguagem natural!`
+    );
+  };
+  reader.readAsText(file, 'utf-8');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// GERAR .DAT (índice JSON)
+// ═══════════════════════════════════════════════════════════════
+function gerarDat(xml, filename) {
+  const parser = new DOMParser();
+  const doc    = parser.parseFromString(xml, 'text/xml');
+  const root   = doc.documentElement;
+
+  const meta = {
+    schema_version: "1.0",
+    purpose: "Índice otimizado do relatório Fr3 para busca de componentes pela IA",
+    source_file: filename,
+    generated_at: new Date().toISOString(),
+    report_name: root.getAttribute('ReportOptions.Name') || '',
+    fr3_version: root.getAttribute('Version') || '',
+    script_language: root.getAttribute('ScriptLanguage') || '',
+    paper_width_mm: '', paper_height_mm: '', margins_mm: {}
+  };
+
+  const datasets = [...doc.querySelectorAll('Datasets item')].map(el => ({
+    name: el.getAttribute('DataSetName') || '',
+    alias: el.getAttribute('DataSet') || '',
+    xpath: `//Datasets/item[@DataSetName='${el.getAttribute('DataSetName')}']`
+  }));
+
+  const variables = [...doc.querySelectorAll('Variables item')].map(el => ({
+    name: (el.getAttribute('Name') || '').trim(),
+    xpath: `//Variables/item[@Name='${el.getAttribute('Name')}']`
+  }));
+
+  const styles = [...doc.querySelectorAll('Styles item')].map(el => ({
+    name: el.getAttribute('Name') || '',
+    font_name: el.getAttribute('Font.Name') || '',
+    font_height: el.getAttribute('Font.Height') || '',
+    font_style: el.getAttribute('Font.Style') || '',
+    font_color: el.getAttribute('Font.Color') || '',
+    xpath: `//Styles/item[@Name='${el.getAttribute('Name')}']`
+  }));
+
+  const pages = [...doc.querySelectorAll('TfrxReportPage')].map(el => {
+    meta.paper_width_mm  = el.getAttribute('PaperWidth')  || '';
+    meta.paper_height_mm = el.getAttribute('PaperHeight') || '';
+    meta.margins_mm = {
+      left: el.getAttribute('LeftMargin') || '', right: el.getAttribute('RightMargin') || '',
+      top:  el.getAttribute('TopMargin')  || '', bottom: el.getAttribute('BottomMargin') || ''
+    };
+    return { name: el.getAttribute('Name'), paper_size: el.getAttribute('PaperSize'),
+             paper_width_mm: el.getAttribute('PaperWidth'), paper_height_mm: el.getAttribute('PaperHeight') };
+  });
+
+  const databases = [...doc.querySelectorAll('TfrxDBXDatabase')].map(el => ({
+    name: el.getAttribute('Name') || '', driver: el.getAttribute('DriverName') || '',
+    library: el.getAttribute('LibraryName') || '', vendor_lib: el.getAttribute('VendorLib') || '',
+    xpath: `//TfrxDBXDatabase[@Name='${el.getAttribute('Name')}']`
+  }));
+
+  const queries = [...doc.querySelectorAll('TfrxDBXQuery')].map(el => ({
+    name: el.getAttribute('Name') || '', user_name: el.getAttribute('UserName') || '',
+    database: el.getAttribute('Database') || '',
+    sql: (el.getAttribute('SQL.Text') || '').replace(/\r\n/g,'\n').trim(),
+    xpath: `//TfrxDBXQuery[@Name='${el.getAttribute('Name')}']`
+  }));
+
+  const compTags = ['TfrxMemoView','TfrxPictureView','TfrxMasterData','TfrxSubreport',
+                    'TfrxBandView','TfrxShapeView','TfrxCheckBoxView','TfrxRichView'];
+  const components = [];
+  for (const tag of compTags) {
+    for (const el of doc.querySelectorAll(tag)) {
+      const a = n => el.getAttribute(n) || '';
+      const name = a('Name');
+      const comp = {
+        component_type: tag, name,
+        xpath: `//${tag}[@Name='${name}']`,
+        position: { left: a('Left'), top: a('Top'), width: a('Width'), height: a('Height') },
+        data_binding: {
+          dataset: a('DataSetName') || a('DataSet'), field: a('DataField'), text_expression: a('Text')
+        },
+        font: { name: a('Font.Name'), height: a('Font.Height'), style: a('Font.Style'),
+                color: a('Font.Color'), charset: a('Font.Charset') },
+        alignment: { horizontal: a('HAlign'), vertical: a('VAlign') },
+        frame: a('Frame.Typ'), allow_vector_export: a('AllowVectorExport')
+      };
+      if (tag === 'TfrxMasterData') comp.band_config = {
+        columns: a('Columns'), column_width: a('ColumnWidth'), column_gap: a('ColumnGap'),
+        dataset: a('DataSetName'), description: a('Description')
+      };
+      if (tag === 'TfrxPictureView') comp.picture_config = {
+        high_quality: a('HightQuality'), transparent: a('Transparent'), transparent_color: a('TransparentColor')
+      };
+      components.push(comp);
+    }
+  }
+
+  const html_div_map = [];
+  for (const comp of components) {
+    const expr = comp.data_binding.text_expression;
+    if (expr) {
+      const matches = expr.match(/\[([^\]]+)\]/g) || [];
+      for (const m of matches) {
+        html_div_map.push({
+          component_name: comp.name,
+          expression: m,
+          dataset_field: m.replace(/^\[|\]$/g,''),
+          component_xpath: comp.xpath
+        });
+      }
+    }
+  }
+
+  return {
+    meta, datasets, variables, styles, pages, databases, queries, components, html_div_map,
+    summary: {
+      total_datasets:      datasets.length,
+      total_variables:     variables.length,
+      total_styles:        styles.length,
+      total_pages:         pages.length,
+      total_databases:     databases.length,
+      total_queries:       queries.length,
+      total_components:    components.length,
+      total_data_bindings: html_div_map.length
+    }
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MOSTRAR INFO DO ARQUIVO
+// ═══════════════════════════════════════════════════════════════
+function mostrarInfoArquivo(file, dat) {
+  document.getElementById('fileInfo').classList.add('show');
+  document.getElementById('fileName').textContent = file.name;
+  document.getElementById('fileMeta').innerHTML =
+    `Relatório: <span>${dat.meta.report_name || '—'}</span><br>` +
+    `Papel: <span>${dat.meta.paper_width_mm}×${dat.meta.paper_height_mm}mm</span><br>` +
+    `Componentes: <span>${dat.summary.total_components}</span><br>` +
+    `Variáveis: <span>${dat.summary.total_variables}</span>`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RENDERIZAR ÁRVORE
+// ═══════════════════════════════════════════════════════════════
+function renderizarArvore(dat) {
+  const tree = document.getElementById('structTree');
+  tree.innerHTML = '';
+
+  const grupos = [
+    { label: 'Datasets',    items: dat.datasets,    badge: 'badge-db',   icon: '🗄', keyFn: d => d.name },
+    { label: 'Queries',     items: dat.queries,     badge: 'badge-db',   icon: '📋', keyFn: d => d.name },
+    { label: 'Variáveis',   items: dat.variables,   badge: '',           icon: '📌', keyFn: d => d.name },
+    { label: 'Estilos',     items: dat.styles,      badge: '',           icon: '🎨', keyFn: d => d.name },
+    { label: 'Componentes', items: dat.components,  badge: '',           icon: '🧩',
+      keyFn: d => d.name,
+      badgeFn: d => d.component_type.replace('Tfrx','').replace('View','').replace('Data','') },
+  ];
+
+  for (const g of grupos) {
+    if (!g.items.length) continue;
+    const grp = document.createElement('div');
+    grp.className = 'tree-group';
+    const hdr = document.createElement('div');
+    hdr.className = 'tree-header';
+    hdr.innerHTML = `<span class="tree-arrow">▶</span> ${g.icon} ${g.label} <span style="margin-left:auto;font-size:10px;background:var(--surface2);padding:1px 6px;border-radius:3px;">${g.items.length}</span>`;
+    const items = document.createElement('div');
+    items.className = 'tree-items';
+    hdr.onclick = () => {
+      const open = items.classList.toggle('open');
+      hdr.querySelector('.tree-arrow').classList.toggle('open', open);
+    };
+    for (const item of g.items) {
+      const row = document.createElement('div');
+      row.className = 'tree-item';
+      const badgeClass = g.badgeFn ? getBadgeClass(item.component_type) : g.badge;
+      const badgeLabel = g.badgeFn ? g.badgeFn(item) : '';
+      row.innerHTML = `${g.icon} ${g.keyFn(item)} ${badgeLabel ? `<span class="tree-badge ${badgeClass}">${badgeLabel}</span>` : ''}`;
+      row.onclick = () => {
+        document.querySelectorAll('.tree-item').forEach(i => i.classList.remove('selected'));
+        row.classList.add('selected');
+        document.getElementById('userInput').value = `Altere o componente "${g.keyFn(item)}" `;
+        document.getElementById('userInput').focus();
+      };
+      items.appendChild(row);
+    }
+    grp.appendChild(hdr); grp.appendChild(items);
+    tree.appendChild(grp);
+  }
+}
+
+function getBadgeClass(type) {
+  if (type === 'TfrxMemoView')    return 'badge-memo';
+  if (type === 'TfrxPictureView') return 'badge-pic';
+  if (type === 'TfrxMasterData')  return 'badge-band';
+  return '';
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ATIVAR CHAT
+// ═══════════════════════════════════════════════════════════════
+function ativarChat() {
+  document.getElementById('userInput').disabled   = false;
+  document.getElementById('sendBtn').disabled     = false;
+  document.getElementById('btnGerarDat').disabled = false;
+  document.getElementById('btnBaixarFr3').disabled = false;
+  document.getElementById('btnSalvarPasta').disabled = !handlePastaSaida;
+  setStatus(true, `${datObj.meta.report_name || 'Relatório'} carregado`);
+}
+
+function setStatus(active, text) {
+  document.getElementById('statusDot').classList.toggle('active', active);
+  document.getElementById('statusText').textContent = text;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CHAT
+// ═══════════════════════════════════════════════════════════════
+const input = document.getElementById('userInput');
+input.addEventListener('input', () => {
+  input.style.height = 'auto';
+  input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+});
+input.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviar(); }
+});
+
+function usarHint(el) {
+  input.value = el.textContent;
+  input.focus();
+}
+
+function formatarMsgIA(texto) {
+  return texto
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/```([\s\S]*?)```/g, '<pre>$1</pre>')
+    .replace(/\n/g, '<br>');
+}
+
+function adicionarMsgSistema(texto) {
+  const msgs = document.getElementById('chatMessages');
+  const msg  = document.createElement('div');
+  msg.className = 'msg assistant';
+  msg.innerHTML = `
+    <div class="msg-avatar">IA</div>
+    <div>
+      <div class="msg-bubble">${formatarMsgIA(texto)}</div>
+      <div class="msg-time">${new Date().toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'})}</div>
+    </div>`;
+  msgs.appendChild(msg);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function adicionarMsgUsuario(texto) {
+  const msgs = document.getElementById('chatMessages');
+  const msg  = document.createElement('div');
+  msg.className = 'msg user';
+  msg.innerHTML = `
+    <div class="msg-avatar">👤</div>
+    <div>
+      <div class="msg-bubble">${texto.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
+      <div class="msg-time">${new Date().toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'})}</div>
+    </div>`;
+  msgs.appendChild(msg);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function mostrarTyping() {
+  const msgs = document.getElementById('chatMessages');
+  const t    = document.createElement('div');
+  t.className = 'typing'; t.id = 'typing';
+  t.innerHTML = `
+    <div class="typing-avatar">IA</div>
+    <div class="typing-bubble">
+      <div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>
+    </div>`;
+  msgs.appendChild(t);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+function removerTyping() {
+  const t = document.getElementById('typing');
+  if (t) t.remove();
+}
+
+async function enviar() {
+  const texto = input.value.trim();
+  if (!texto || !fr3Content) return;
+
+  // Verificar API key se não estiver no ambiente Claude.ai
+  if (!cfg.apiKey) {
+    // Tenta sem key (ambiente Claude.ai injeta automaticamente)
+    // Se já falhou antes com "Failed to fetch", o usuário deve configurar a key
+  }
+
+  adicionarMsgUsuario(texto);
+  input.value = ''; input.style.height = 'auto';
+  document.getElementById('sendBtn').disabled = true;
+  setStatus(true, 'IA processando...');
+  mostrarTyping();
+
+  const systemPrompt = `Você é um especialista em relatórios FastReport (Fr3). 
+Você recebe um arquivo Fr3 em XML e um índice .dat com a estrutura do relatório.
+Sua tarefa é aplicar alterações no XML do Fr3 conforme solicitado pelo usuário.
+
+ÍNDICE DO RELATÓRIO (.dat):
+${JSON.stringify(datObj, null, 2)}
+
+XML ATUAL DO FR3:
+${fr3Modified}
+
+INSTRUÇÕES:
+1. Analise o pedido do usuário
+2. Identifique os componentes afetados usando o índice .dat
+3. Gere o XML COMPLETO e MODIFICADO do Fr3 com as alterações aplicadas
+4. Explique resumidamente o que foi alterado
+
+IMPORTANTE:
+- Retorne SEMPRE o XML completo modificado entre as tags <FR3_XML> e </FR3_XML>
+- Depois do XML, explique as alterações feitas de forma clara e direta
+- Para alterar fonte: modifique os atributos Font.Name, Font.Height (use valores negativos como -11 para 8pt, -13 para 10pt, -15 para 11pt, -19 para 14pt), Font.Style (0=normal, 1=negrito, 2=itálico, 3=negrito+itálico)
+- Para alterar cor: use Font.Color com valor decimal (ex: -16777208 = quase preto, 16711680 = azul, 255 = vermelho)
+- Preserve toda a estrutura XML original, alterando apenas o necessário
+- Se for adicionar campo novo, crie um TfrxMemoView com atributos similares aos existentes`;
+
+  conversa.push({ role: 'user', content: texto });
+
+  try {
+    // Gemini 2.0 Flash — monta histórico no formato Google
+    const geminiMessages = conversa.map(m => ({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: m.content }]
+    }));
+
+    const apiKey = cfg.apiKey;
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+    const resp = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        system_instruction: { parts: [{ text: systemPrompt }] },
+        contents: geminiMessages,
+        generationConfig: { maxOutputTokens: 8192, temperature: 0.2 }
+      })
+    });
+
+    const data      = await resp.json();
+    if (data.error) throw new Error(data.error.message);
+    const respTexto = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Erro ao processar resposta.';
+
+    const xmlMatch  = respTexto.match(/<FR3_XML>([\s\S]*?)<\/FR3_XML>/);
+    let   explicacao = respTexto.replace(/<FR3_XML>[\s\S]*?<\/FR3_XML>/g, '').trim();
+
+    if (xmlMatch) {
+      fr3Modified = xmlMatch[1].trim();
+      datObj      = gerarDat(fr3Modified, datObj.meta.source_file);
+      renderizarArvore(datObj);
+
+      // Habilitar botão salvar na pasta se tiver handle
+      if (handlePastaSaida) {
+        document.getElementById('btnSalvarPasta').disabled = false;
+      }
+    }
+
+    conversa.push({ role: 'assistant', content: respTexto });
+
+    removerTyping();
+    adicionarMsgSistema(
+      (xmlMatch ? '✅ **FR3 modificado com sucesso!**\n\n' : '') + (explicacao || 'Alteração aplicada.')
+    );
+
+    if (xmlMatch) {
+      setStatus(true, 'FR3 modificado — pronto para baixar ou salvar na pasta');
+      // Salvar automaticamente se a pasta de saída estiver configurada
+      if (handlePastaSaida && cfg.nomeArquivo) {
+        await salvarNaPasta();
+      }
+    } else {
+      setStatus(true, datObj.meta.report_name + ' carregado');
+    }
+
+  } catch (err) {
+    removerTyping();
+    const semKey = !cfg.apiKey;
+    adicionarMsgSistema(
+      `❌ Erro ao conectar com a IA: \`${err.message}\`\n\n` +
+      (semKey
+        ? `💡 **Dica:** Abra as **Configurações** (⚙) e informe sua **API Key** do Google Gemini (obtenha grátis em aistudio.google.com).`
+        : `Verifique sua conexão e se a API Key está correta nas Configurações.`)
+    );
+    setStatus(false, 'Erro de conexão');
+  }
+
+  document.getElementById('sendBtn').disabled = false;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// DOWNLOADS (fallback — sem pasta configurada)
+// ═══════════════════════════════════════════════════════════════
+function baixarDat() {
+  if (!datObj) return;
+  const blob = new Blob([JSON.stringify(datObj, null, 2)], {type: 'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = datObj.meta.source_file.replace('.fr3', '.dat');
+  a.click();
+}
+
+function baixarFr3() {
+  if (!fr3Modified) return;
+  const blob = new Blob([fr3Modified], {type: 'text/xml;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  const nome = datObj.meta.source_file.replace('.fr3', '_modificado.fr3');
+  a.download = nome;
+  a.click();
+  adicionarMsgSistema(`📥 Arquivo **${nome}** baixado com sucesso!`);
+}
+
+function limparChat() {
+  conversa = [];
+  const msgs = document.getElementById('chatMessages');
+  msgs.innerHTML = '';
+  if (fr3Content) {
+    adicionarMsgSistema('🔄 Chat limpo. O arquivo Fr3 ainda está carregado — pode continuar fazendo alterações!');
+  } else {
+    msgs.innerHTML = `<div class="welcome" id="welcome">
+      <div class="welcome-icon">🤖</div>
+      <h3>FR3 Editor com Inteligência Artificial</h3>
+      <p>Carregue um arquivo <strong>.fr3</strong> no painel esquerdo e depois descreva em linguagem natural as alterações que deseja fazer no relatório.</p>
+    </div>`;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// TOAST
+// ═══════════════════════════════════════════════════════════════
+let toastTimer = null;
+function mostrarToast(msg, tipo = 'info') {
+  const t = document.getElementById('toast');
+  const icons = { success: '✓', error: '✕', info: 'ℹ' };
+  t.className = `toast ${tipo}`;
+  t.innerHTML = `<span>${icons[tipo]}</span> ${msg}`;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 3500);
+}
+</script>
+</body>
+</html>
