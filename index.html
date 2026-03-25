@@ -1848,17 +1848,35 @@ IMPORTANTE:
     }
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
-    const resp = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        system_instruction: { parts: [{ text: systemPrompt }] },
-        contents: geminiMessages,
-        generationConfig: { maxOutputTokens: 8192, temperature: 0.2 }
-      })
+    const reqBody = JSON.stringify({
+      system_instruction: { parts: [{ text: systemPrompt }] },
+      contents: geminiMessages,
+      generationConfig: { maxOutputTokens: 8192, temperature: 0.2 }
     });
 
-    const data      = await resp.json();
+    // Retry automático em caso de 429 (rate limit)
+    let resp, data;
+    for (let tentativa = 1; tentativa <= 3; tentativa++) {
+      resp = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: reqBody
+      });
+      data = await resp.json();
+
+      if (resp.status === 429) {
+        const espera = tentativa * 15; // 15s, 30s, 45s
+        setStatus(true, `Limite atingido — aguardando ${espera}s (tentativa ${tentativa}/3)...`);
+        adicionarMsgSistema(`⏳ Limite de requisições atingido. Aguardando **${espera} segundos** antes de tentar novamente... (${tentativa}/3)`);
+        await new Promise(r => setTimeout(r, espera * 1000));
+        // Remover mensagem de espera e continuar
+        const msgs = document.getElementById('chatMessages');
+        if (msgs.lastChild) msgs.removeChild(msgs.lastChild);
+        continue;
+      }
+      break; // sucesso ou erro diferente de 429
+    }
+
     if (data.error) throw new Error(data.error.message);
     const respTexto = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Erro ao processar resposta.';
 
